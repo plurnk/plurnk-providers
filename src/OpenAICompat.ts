@@ -364,9 +364,12 @@ export default class OpenAICompatProvider implements Provider {
             }
         }
 
-        // Verify the backend honored the grammar we transported (§13) before the
-        // content reaches the consumer — only when we actually sent one.
+        // Verify the backend honored the grammar we transported (§13) before the content reaches the
+        // consumer. PLURNK_GBNF_DEBUG withholds the grammar (unconstrained generation) but still runs
+        // the output back through it, so a free answer the grammar would reject surfaces as
+        // grammar_unenforced — the conflict-debugging mode, not just a gbnf-syntax check against "".
         if (sendGrammar !== undefined) this.#verifyGrammarEnforced(sendGrammar, raw.content);
+        else if (wantGrammar && this.#gbnfDebug) this.#verifyGrammarEnforced(grammar!, raw.content);
 
         const meta = this.#buildMeta(raw.chunkMetadata);
 
