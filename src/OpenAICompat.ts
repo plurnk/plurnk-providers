@@ -314,9 +314,11 @@ export default class OpenAICompatProvider implements Provider {
         signal?.throwIfAborted();
 
         // Grammar handling (SPEC §13). PLURNK_GBNF_DEBUG validates the supplied
-        // grammar locally and throws on a malformed one, WITHOUT transporting it —
-        // the request then runs unconstrained (and skips enforcement). Otherwise the
-        // grammar is sent when the backend supports it (grammarStyle !== "none").
+        // grammar locally and throws on a malformed one, then WITHHOLDS it so the
+        // model generates UNCONSTRAINED — and the free output is still verified
+        // against the grammar (below), surfacing exactly where the model's natural
+        // output and the grammar conflict. Otherwise the grammar is sent when the
+        // backend supports it (grammarStyle !== "none").
         const wantGrammar = grammar !== undefined && this.#grammarStyle !== "none";
         if (wantGrammar && this.#gbnfDebug) this.#assertGrammarValid(grammar!);
         const sendGrammar = wantGrammar && !this.#gbnfDebug ? grammar : undefined;
