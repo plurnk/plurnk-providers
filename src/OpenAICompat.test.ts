@@ -298,12 +298,17 @@ test("gbnfDebug: the grammar is NOT transported but conforming free output passe
     assert.equal(assistant.content, "ok");             // free output happens to conform → returned
 });
 
-test("gbnfDebug: unconstrained output that conflicts with the grammar throws grammar_unenforced", async () => {
+test("gbnfDebug: a conflict throws grammar_unenforced carrying the full unconstrained output (both channels)", async () => {
     const p = new OpenAICompatProvider({ model: "m", url: "http://x", fetchTimeoutMs: 5000, reasoningBudget: 0, retryAttempts: 0, grammarStyle: "llamacpp", gbnfDebug: true, source: "provider:test" });
-    const calls = installFetch([{ choices: [{ delta: { content: "non-conforming output" }, finish_reason: "stop" }] }]);
+    const calls = installFetch([{ choices: [{ delta: { reasoning_content: "let me think about ok", content: "non-conforming output" }, finish_reason: "stop" }] }]);
     await assert.rejects(
         () => p.generate({ runId: "r", messages: [], grammar: 'root ::= "ok"' }),
-        /grammar not enforced: output rejected by the transported grammar at code point 0 \("n"\)/,
+        (err: Error) => {
+            assert.match(err.message, /output rejected by the transported grammar at code point 0 \("n"\)/); // divergence point
+            assert.match(err.message, /\[reasoning channel\] \nlet me think about ok/);                       // free reasoning surfaced
+            assert.match(err.message, /\[content channel[^\]]*\]\nnon-conforming output/);                     // free content surfaced
+            return true;
+        },
     );
     const body = JSON.parse(calls[0].init.body as string);
     assert.equal("grammar" in body, false);            // still never sent — the conflict is diagnosed, not enforced

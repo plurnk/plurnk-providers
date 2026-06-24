@@ -129,6 +129,20 @@ const describeUnenforced = (v: Exclude<Verdict, { status: "accept" }>): string =
     return `grammar not enforced: output is an incomplete match of the transported grammar — a valid prefix of ${v.pos} code points that never terminated`;
 };
 
+// PLURNK_GBNF_DEBUG diagnostic: the terse verdict PLUS the full unconstrained
+// output the model actually produced — both channels, labeled — so the operator
+// sees what the model wanted to say and exactly where it collides with the
+// grammar. The §12 terseness policy is for production transport errors; this is
+// gated behind an explicit debug toggle, where the whole point is the full text.
+// The divergence code point is an offset into the content channel (the validated
+// string); the reasoning channel is shown for context, not validated.
+const describeConflict = (v: Exclude<Verdict, { status: "accept" }>, reasoning: string, content: string): string => [
+    describeUnenforced(v),
+    "PLURNK_GBNF_DEBUG — unconstrained output the model produced:",
+    `[reasoning channel] ${reasoning.length > 0 ? `\n${reasoning}` : "(empty)"}`,
+    `[content channel — the string the code point above indexes into]\n${content}`,
+].join("\n");
+
 export default class OpenAICompatProvider implements Provider {
     #model: string;
     #url: string;
@@ -261,7 +275,7 @@ export default class OpenAICompatProvider implements Provider {
     // verify gap: warn, don't fail a transport that may have worked. This is a
     // conformance check against the grammar we already hold, NOT a plurnk-DSL
     // parse (§8) — it stays grammar-generic and backend-agnostic.
-    #verifyGrammarEnforced(grammar: string, content: string): void {
+    #verifyGrammarEnforced(grammar: string, content: string, debugReasoning?: string): void {
         let verdict: Verdict;
         try {
             verdict = validateGbnf(grammar, content);
@@ -273,7 +287,10 @@ export default class OpenAICompatProvider implements Provider {
             return;
         }
         if (verdict.status === "accept") return;
-        throw new ProviderError(this.#source, "grammar_unenforced", describeUnenforced(verdict));
+        // Debug mode passes the reasoning channel → the throw carries the full
+        // unconstrained output; production stays terse (§12).
+        const message = debugReasoning !== undefined ? describeConflict(verdict, debugReasoning, content) : describeUnenforced(verdict);
+        throw new ProviderError(this.#source, "grammar_unenforced", message);
     }
 
     // PLURNK_GBNF_DEBUG (SPEC §13): validate the supplied GBNF locally and fail
@@ -371,7 +388,7 @@ export default class OpenAICompatProvider implements Provider {
         // the output back through it, so a free answer the grammar would reject surfaces as
         // grammar_unenforced — the conflict-debugging mode, not just a gbnf-syntax check against "".
         if (sendGrammar !== undefined) this.#verifyGrammarEnforced(sendGrammar, raw.content);
-        else if (wantGrammar && this.#gbnfDebug) this.#verifyGrammarEnforced(grammar!, raw.content);
+        else if (wantGrammar && this.#gbnfDebug) this.#verifyGrammarEnforced(grammar!, raw.content, raw.reasoning_content);
 
         const meta = this.#buildMeta(raw.chunkMetadata);
 
