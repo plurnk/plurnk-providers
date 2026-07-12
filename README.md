@@ -1,3 +1,5 @@
+> **ABSORBED into the plurnk platform monorepo** — code, history, and issues now live in [`plurnk/plurnk-service`](https://github.com/plurnk/plurnk-service) under `plurnk-providers/`. This repo is an archived snapshot.
+
 # plurnk-providers
 
 Framework + contract for `@plurnk/plurnk-providers-*` sibling packages (LLM transports + tokenizer + cost accounting). Consumed by [plurnk-service](https://github.com/plurnk/plurnk-service).
